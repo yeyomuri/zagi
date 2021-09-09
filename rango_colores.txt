@@ -1,0 +1,5 @@
+lowerGreen = (45, 171, 72)
+upperGreen = (70, 255, 255)
+
+lowerPink = (145, 52, 106)
+upperPink = (170, 255 255)
