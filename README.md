@@ -2,7 +2,7 @@
 1. Instale python e incluya el PATH en la instalación
 2. Instale las librerías 
   - opencv-python ==> pip install opencv-python
-  - numpy ==> pip install numpy
+  - numpy         ==> pip install numpy
   
 3. Descargue toda la carpeta y ejecute el archivo main.py
 
