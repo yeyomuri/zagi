@@ -8,14 +8,9 @@ from stack_images import stackImages
 # Rangos HSV
 lowerGreen = np.array([40, 72, 59])
 upperGreen = np.array([77, 255, 255])
-lowerPink = np.array([255, 255, 255])
-upperPink = np.array([255, 255, 255])
-
-listContour = []
-listHorizontal = []
-listVertical = []
+lowerPink = np.array([150, 84, 180])
+upperPink = np.array([179, 255, 255])
 cap = cv2.VideoCapture(0)
-#imgobs = cv2.imread('images/3.jpeg')
 
 # Asigna resolusion de la camara
 cap.set(3, 480)
@@ -28,11 +23,14 @@ centerVertical = row // 2
 # ----- Función que clasifica y ordena los contornos por color, tambien hace el cálculo por donde tiene que pasar el Zagi -----
 def getContours(imgContour, img, label):
 
+    listContour = []
+    listHorizontal = []
+    listVertical = []
     contours,hierarchy = cv2.findContours(img,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
     for cnt in contours:
         area = cv2.contourArea(cnt)
         #print(area)
-        if area>1000:
+        if area>300:
             cv2.drawContours(imgContour, cnt, -1, (0, 0, 0), 5)
             peri = cv2.arcLength(cnt,True)
             approx = cv2.approxPolyDP(cnt,0.02*peri,True)
@@ -64,9 +62,8 @@ def getContours(imgContour, img, label):
     listHorizontal.sort(key=lambda x: x[1] + x[2])
     listVertical.sort(key=lambda x: x[1] + x[2])
     #print(listContour)
+
     try:
-        #-----------------------------------------------------------------------------------------------------------------------
-        #ch = sum(listHorizontal)/float(len(listHorizontal))
         # Variables de mensajes
         message = ''
         message_obs = ''
@@ -75,55 +72,72 @@ def getContours(imgContour, img, label):
         correction_horizontal = 0
         correction_vertical = 0
 
-        # Coordenadas obstaculo
-        x = listHorizontal[0][1]
-        y = listHorizontal[-1][2]
-        w = listVertical[-1][1] - listHorizontal[0][1]
-        h = listVertical[-1][4] - (listHorizontal[0][2] - listVertical[0][2])
-        half_vertical_total = listVertical[-1][2] + listVertical[-1][4] // 2
-        half_horizontal = x + w//2
+        #Coordenadas. El simbolo ° representan los puntos del obstaculo con coordenadas (x1,y1), (x2,y2) y (0, y3) 
 
-        if y > half_vertical_total: #Si el obstaculo esta arriba
-            message_obs = 'por arriba del obstaculo'
-            h = -h
+        #   °(x1,y1)
+        #   ||         ||
+        #   ||         ||
+        #   || (0, y3) ||
+        #   ||----°----||
+        #   ||---------||
+        #   ||         ||
+        #              ° (x2,y2)
+
+        x1 = listVertical[0][1]+ listVertical[0][3]
+        x2 = listVertical[-1][1] 
+        y1 = listVertical[0][2]
+        y2 = listVertical[-1][2] + listVertical[-1][4]
+        
+        x_center = x1 + abs(x2 - x1) // 2
+        y_center = y1 + abs(y2 - y1) // 2
+
+        if len(listHorizontal) == 0:
+            # Rectangulo direccion Zagi y posicionamiento del centro
+            cv2.circle(imgContour, (x_center, y_center), 10, (0, 0, 255), cv2.FILLED)
+            cv2.rectangle(imgContour, (x1,y1),(x2,y2), (0, 0, 255), 2)
+
         else:
-            message_obs = 'por abajo del obstaculo'
+            y3 = listHorizontal[0][2] + (listHorizontal[0][4] // 2)
+            y_up_center = y1 + abs(y3 - y1) // 2
+            y_down_center = y2 - abs(y2 - y3) // 2
 
-        half_vertical = y + h//2
+            if(y3 > y_center): #Si el obstaculo esta abajo                
+                cv2.circle(imgContour, (x_center, y_up_center), 10, (0, 0, 255), cv2.FILLED)
+                cv2.rectangle(imgContour, (x1,y1),(x2,y3), (0, 0, 255), 2)
 
-        # La correccion es un numero entre -1 y 1, donde 0 es el la superposicion de la coordenada del
-        # centro de la camara y la coordenada del obstaculo
-        if half_horizontal > centerHorizontal:
-            correction_horizontal = -(half_horizontal - centerHorizontal) / centerHorizontal
-        else:
-            correction_horizontal = half_horizontal / centerHorizontal
-        if half_vertical > centerVertical:
-            correction_vertical = -(half_vertical - centerVertical) / centerVertical
-        else:
-            correction_vertical = half_vertical / centerVertical
+                #Correccion vertical
+                if y_up_center > centerVertical:
+                    correction_vertical = - abs(y_up_center - centerVertical) / centerVertical
+                else:
+                    correction_vertical = 1 - (y_up_center / centerVertical)
+            
+            elif(y3 < y_center): #Si el obstaculo esta arriba
+                cv2.circle(imgContour, (x_center, y_down_center), 10, (0, 0, 255), cv2.FILLED)
+                cv2.rectangle(imgContour, (x1,y3),(x2,y2), (0, 0, 255), 2)
+                
+                #Correccion vertical
+                if y_down_center > centerVertical:
+                    correction_vertical = - abs(y_down_center - centerVertical) / centerVertical
+                else:
+                    correction_vertical = 1 - (y_down_center / centerVertical)
+                
+            # La correccion es un numero entre -1 y 1, donde 0 es el la superposicion de la coordenada del
+            # centro de la camara y la coordenada del centro del obstaculo
+            if x_center > centerHorizontal:
+                correction_horizontal = - abs(x_center - centerHorizontal) / centerHorizontal
+            else:
+                correction_horizontal = 1 - (x_center / centerHorizontal)
 
-        print(f'correccion: ({correction_horizontal:.2f}%, {correction_vertical:.2f}%)')
 
-        # Rectangulo direccion Zagi y posicionamiento del centro
-        cv2.circle(imgContour, (half_horizontal, half_vertical), 10, (0, 0, 255), cv2.FILLED)
-        cv2.rectangle(imgContour, (x,y),(x+w,y+h), (0, 0, 255), 2)
+            print(f'correccion: ({correction_horizontal:.2f}%, {correction_vertical:.2f}%)')
 
-        # Move servo motor
-        if half_horizontal < centerHorizontal - 30:
-            message = 'Mover izquierda, '
-        elif half_horizontal > centerHorizontal + 30:
-            message = 'Mover derecha, '
-        else:
-            message = 'Mover recto horizontal, '
+            ##
+            #   A partir de la CORRECION se crea un controlador PID para el seguimiento de la coordenada
+            #   del obstaculo.
+            #
 
-        if half_vertical < centerVertical - 30:
-            print(message, 'abajo, ', message_obs)
-        elif half_vertical > centerVertical + 30:
-            print(message, 'arriba, ', message_obs)
-        else:
-            print(message, 'recto vertical, ', message_obs)
     except:
-        #print('Sin contornos')
+        # Sin contornos
         pass
 #----------------------------------------------------------------BUCLE------------------------------------------------------------------
 while True:
@@ -138,17 +152,14 @@ while True:
     # Mascaras
     greenMask = cv2.inRange(imgHSV, lowerGreen, upperGreen)
     pinkMask = cv2.inRange(imgHSV, lowerPink, upperPink)
-    mask = cv2.bitwise_or(greenMask, pinkMask)
+    mask = cv2.bitwise_or(greenMask, pinkMask) #Une las dos mascaras (verde y rosada)
 
     # Obtiene los contornos de las mascara clasificados por color
     # getContours(imgContour, mask)
+    getContours(imgContour, mask, "PINK")
+    #getContours(imgContour, greenMask, "GREEN")
+    
 
-    getContours(imgContour, greenMask, "GREEN")
-    getContours(imgContour, pinkMask, "PINK")
-
-    listContour = []
-    listHorizontal = []
-    listVertical = []
     # Interseccion de mascara e imagen orginal(BGR)
     result = cv2.bitwise_and(img, img, mask=mask)
 
