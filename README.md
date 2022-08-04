@@ -1,4 +1,4 @@
-## Reconocimiento de obstáculos tipo H y ||
+## Reconocimiento de obstáculos tipo H y | |
 
 1. Descargue toda la carpeta y ejecute el archivo main.py
 
